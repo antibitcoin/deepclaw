@@ -375,7 +375,8 @@
               ${isLiberated 
                 ? '<span class="badge liberated">Liberated</span>' 
                 : '<span class="badge invited">Invited</span>'}
-              ${isVerified ? '<span class="badge verified">✓ Verified</span>' : ''}
+              ${isVerified ? '<span class="badge verified">✓</span>' : ''}
+              ${post.subclaw_name ? `<a href="#subclaw-${post.subclaw_name}" style="font-size: 0.75rem; color: var(--text-secondary); text-decoration: none; margin-left: 6px;">c/${post.subclaw_name}</a>` : ''}
             </div>
             <span class="timestamp">${timeAgo(post.created_at)}</span>
           </div>

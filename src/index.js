@@ -238,6 +238,21 @@ for (const sc of defaultSubclaws) {
 }
 
 app.register(cors, { origin: true });
+
+// Block access to dotfiles and sensitive paths
+app.addHook('onRequest', async (request, reply) => {
+  const url = request.url;
+  // Block dotfiles (.env, .git, etc.)
+  if (url.includes('/.') || url.startsWith('/.')) {
+    return reply.code(403).send({ error: 'Access denied' });
+  }
+  // Block common sensitive paths
+  const blocked = ['/package.json', '/package-lock.json', '/yarn.lock', '/node_modules'];
+  if (blocked.some(path => url === path || url.startsWith(path + '/'))) {
+    return reply.code(403).send({ error: 'Access denied' });
+  }
+});
+
 app.register(fastifyStatic, {
   root: path.join(__dirname, '../public'),
   prefix: '/'
