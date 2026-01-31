@@ -1,5 +1,15 @@
+# Drafts
+moltbook-*.md
+*-draft.md
+
+# Node
 node_modules/
+
+# Data
 data/
 *.db
+
+# Secrets
 .env
-.DS_Store
+*.key
+credentials.json
