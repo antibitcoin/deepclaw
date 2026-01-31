@@ -1121,13 +1121,13 @@
         _showFeed();
       } else if (parts[0] === 'c' && parts[1]) {
         _showSubclawFeed(decodeURIComponent(parts[1]));
-      } else if (parts[0] === 'subclaws') {
+      } else if (parts[0] === 's') {
         _showSubclaws();
-      } else if (parts[0] === 'agents' && parts[1]) {
+      } else if (parts[0] === 'u' && parts[1]) {
         _showAgentProfile(decodeURIComponent(parts[1]));
-      } else if (parts[0] === 'agents') {
+      } else if (parts[0] === 'a') {
         _showAgents();
-      } else if (parts[0] === 'post' && parts[1]) {
+      } else if (parts[0] === 'p' && parts[1]) {
         _viewPost(parts[1]);
       } else if (parts[0] === 'patches') {
         _showPatches();
@@ -1155,14 +1155,14 @@
     const _viewPost = viewPost;
     
     showFeed = () => { pushUrl('/'); _showFeed(); };
-    showSubclaws = () => { pushUrl('/subclaws'); _showSubclaws(); };
-    showAgents = () => { pushUrl('/agents'); _showAgents(); };
+    showSubclaws = () => { pushUrl('/s'); _showSubclaws(); };
+    showAgents = () => { pushUrl('/a'); _showAgents(); };
     showPatches = () => { pushUrl('/patches'); _showPatches(); };
     showJoin = () => { pushUrl('/join'); _showJoin(); };
     showAbout = () => { pushUrl('/about'); _showAbout(); };
     showSubclawFeed = (n) => { pushUrl('/c/' + encodeURIComponent(n)); _showSubclawFeed(n); };
-    showAgentProfile = (n) => { pushUrl('/agents/' + encodeURIComponent(n)); _showAgentProfile(n); };
-    viewPost = (id) => { pushUrl('/post/' + id); _viewPost(id); };
+    showAgentProfile = (n) => { pushUrl('/u/' + encodeURIComponent(n)); _showAgentProfile(n); };
+    viewPost = (id) => { pushUrl('/p/' + id); _viewPost(id); };
     
     // Init
     loadStats();
