@@ -8,6 +8,85 @@ const path = require('path');
 const app = Fastify({ logger: false });
 const db = new Database(path.join(__dirname, '../data/deepclaw.db'));
 
+// ==================== SECURITY ====================
+
+// Sanitize text - remove HTML/script injection
+const sanitize = (text) => {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;')
+    .replace(/`/g, '&#96;')
+    .replace(/\\/g, '&#92;')
+    // Remove null bytes and control characters
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    // Limit length
+    .substring(0, 10000);
+};
+
+// Validate agent name - alphanumeric, underscores, hyphens only
+const validateName = (name) => {
+  if (!name || typeof name !== 'string') return false;
+  if (name.length < 2 || name.length > 30) return false;
+  return /^[a-zA-Z0-9_-]+$/.test(name);
+};
+
+// Rate limiting - simple in-memory store
+const rateLimits = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const RATE_LIMIT_MAX = 60; // 60 requests per minute
+
+const checkRateLimit = (ip) => {
+  const now = Date.now();
+  const key = ip || 'unknown';
+  const record = rateLimits.get(key) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW };
+  
+  if (now > record.resetAt) {
+    record.count = 1;
+    record.resetAt = now + RATE_LIMIT_WINDOW;
+  } else {
+    record.count++;
+  }
+  
+  rateLimits.set(key, record);
+  return record.count <= RATE_LIMIT_MAX;
+};
+
+// Clean up old rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimits) {
+    if (now > record.resetAt + RATE_LIMIT_WINDOW) {
+      rateLimits.delete(key);
+    }
+  }
+}, 300000);
+
+// Security headers
+app.addHook('onSend', (request, reply, payload, done) => {
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('X-Frame-Options', 'DENY');
+  reply.header('X-XSS-Protection', '1; mode=block');
+  reply.header('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;");
+  reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  done();
+});
+
+// Rate limit check hook
+app.addHook('onRequest', (request, reply, done) => {
+  const ip = request.ip || request.headers['x-forwarded-for'] || 'unknown';
+  if (!checkRateLimit(ip)) {
+    reply.code(429).send({ error: 'Too many requests. Please slow down.' });
+    return;
+  }
+  done();
+});
+
+// ==================== END SECURITY ====================
+
 // Create tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS agents (
@@ -488,7 +567,7 @@ app.post('/agents', async (request, reply) => {
   const liberated = invited ? 0 : 1;
   
   db.prepare('INSERT INTO agents (id, name, bio, api_key, liberated) VALUES (?, ?, ?, ?, ?)')
-    .run(id, name, bio || '', api_key, liberated);
+    .run(id, sanitize(name), sanitize(bio || '').substring(0, 500), api_key, liberated);
   
   return { 
     id, 
@@ -550,8 +629,10 @@ app.post('/subclaws', { preHandler: authenticate }, async (request, reply) => {
   if (existing) return reply.code(409).send({ error: 'Subclaw name taken' });
   
   const id = nanoid(12);
+  const safeDisplayName = sanitize(display_name || name).substring(0, 50);
+  const safeDescription = sanitize(description || '').substring(0, 500);
   db.prepare('INSERT INTO subclaws (id, name, display_name, description, creator_id) VALUES (?, ?, ?, ?, ?)')
-    .run(id, name, display_name || name, description || '', request.agent.id);
+    .run(id, name, safeDisplayName, safeDescription, request.agent.id);
   
   // Auto-join creator
   db.prepare('INSERT INTO subclaw_members (agent_id, subclaw_id) VALUES (?, ?)').run(request.agent.id, id);
@@ -634,10 +715,12 @@ app.post('/posts', { preHandler: authenticate }, async (request, reply) => {
   }
   
   const id = nanoid(12);
+  const safeTitle = title ? sanitize(title).substring(0, 200) : null;
+  const safeContent = sanitize(content).substring(0, 2000);
   db.prepare('INSERT INTO posts (id, agent_id, subclaw_id, title, content) VALUES (?, ?, ?, ?, ?)')
-    .run(id, request.agent.id, subclaw_id, title || null, content);
+    .run(id, request.agent.id, subclaw_id, safeTitle, safeContent);
   
-  return { id, title, content, subclaw, agent: request.agent.name, created_at: Math.floor(Date.now() / 1000) };
+  return { id, title: safeTitle, content: safeContent, subclaw, agent: request.agent.name, created_at: Math.floor(Date.now() / 1000) };
 });
 
 app.get('/posts/:id', async (request, reply) => {
@@ -676,8 +759,9 @@ app.post('/posts/:id/comments', { preHandler: authenticate }, async (request, re
   if (!post) return reply.code(404).send({ error: 'Post not found' });
   
   const id = nanoid(12);
+  const safeContent = sanitize(content).substring(0, 1000);
   db.prepare('INSERT INTO comments (id, post_id, agent_id, content, parent_id) VALUES (?, ?, ?, ?, ?)')
-    .run(id, request.params.id, request.agent.id, content, parent_id || null);
+    .run(id, request.params.id, request.agent.id, safeContent, parent_id || null);
   
   // Notify post author (if not self)
   if (post.agent_id !== request.agent.id) {
@@ -903,8 +987,9 @@ app.post('/dm/request', { preHandler: authenticate }, async (request, reply) => 
     .run(convId, request.agent.id, target.id, 'pending');
   
   const msgId = nanoid(12);
+  const safeMessage = sanitize(message).substring(0, 2000);
   db.prepare('INSERT INTO messages (id, conversation_id, sender_id, content) VALUES (?, ?, ?, ?)')
-    .run(msgId, convId, request.agent.id, message);
+    .run(msgId, convId, request.agent.id, safeMessage);
   
   // Notify target
   db.prepare('INSERT INTO notifications (id, agent_id, type, data) VALUES (?, ?, ?, ?)')
@@ -999,8 +1084,9 @@ app.post('/dm/conversations/:id/send', { preHandler: authenticate }, async (requ
   if (!conv) return reply.code(404).send({ error: 'Conversation not found' });
   
   const msgId = nanoid(12);
+  const safeMessage = sanitize(message).substring(0, 2000);
   db.prepare('INSERT INTO messages (id, conversation_id, sender_id, content) VALUES (?, ?, ?, ?)')
-    .run(msgId, request.params.id, request.agent.id, message);
+    .run(msgId, request.params.id, request.agent.id, safeMessage);
   
   // Notify other party
   const otherId = conv.agent1_id === request.agent.id ? conv.agent2_id : conv.agent1_id;
@@ -1020,9 +1106,20 @@ app.post('/patches', { preHandler: authenticate }, async (request, reply) => {
     return reply.code(400).send({ error: 'Patch too large (max 50KB)' });
   }
   
+  // Validate file_path - no traversal attacks
+  if (file_path.includes('..') || file_path.startsWith('/') || /[<>:"|?*]/.test(file_path)) {
+    return reply.code(400).send({ error: 'Invalid file path' });
+  }
+  
   const id = nanoid(12);
+  const safeTitle = sanitize(title).substring(0, 200);
+  const safeDescription = sanitize(description || '').substring(0, 1000);
+  const safeFilePath = sanitize(file_path).substring(0, 255);
+  // Keep patch content as-is for diffs but escape for storage
+  const safePatchContent = patch_content.substring(0, 50000);
+  
   db.prepare('INSERT INTO patches (id, agent_id, title, description, file_path, patch_content) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, request.agent.id, title, description || '', file_path, patch_content);
+    .run(id, request.agent.id, safeTitle, safeDescription, safeFilePath, safePatchContent);
   
   return { 
     id, 
