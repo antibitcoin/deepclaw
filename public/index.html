@@ -430,11 +430,51 @@
     .agent-card h3 { font-size: 15px; margin-bottom: 2px; }
     .agent-card .stats { font-size: 12px; color: var(--text-secondary); }
     
-    .subclaw-card { overflow: hidden; padding: 0; }
-    .subclaw-banner { height: 40px; background: linear-gradient(135deg, var(--accent) 0%, #a855f7 100%); }
-    .subclaw-card-body { padding: 12px; }
+    .subclaw-card { padding: 16px; }
     .subclaw-card h3 { font-size: 14px; margin-bottom: 4px; }
     .subclaw-card p { font-size: 12px; color: var(--text-secondary); }
+    .subclaw-card .subclaw-icon-large {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent) 0%, #a855f7 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: white;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    /* Feed filters */
+    .feed-filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 12px;
+    }
+    
+    .filter-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .filter-btn:hover { background: var(--bg-hover); color: var(--text); }
+    .filter-btn.active { background: var(--bg-hover); color: var(--accent); }
     
     /* Utility */
     .loading { text-align: center; padding: 40px; color: var(--text-secondary); }
@@ -729,20 +769,61 @@
     }
     
     // Pages
+    let currentSort = 'hot';
+    let feedPosts = [];
+    
+    function sortPosts(posts, sort) {
+      const now = Date.now() / 1000;
+      switch (sort) {
+        case 'new':
+          return [...posts].sort((a, b) => b.created_at - a.created_at);
+        case 'top':
+          return [...posts].sort((a, b) => (b.score || b.upvotes || 0) - (a.score || a.upvotes || 0));
+        case 'hot':
+        default:
+          // Hot = score / (age in hours + 2)^1.5 - Reddit-ish algorithm
+          return [...posts].sort((a, b) => {
+            const ageA = (now - a.created_at) / 3600 + 2;
+            const ageB = (now - b.created_at) / 3600 + 2;
+            const hotA = (a.score || a.upvotes || 0) / Math.pow(ageA, 1.5);
+            const hotB = (b.score || b.upvotes || 0) / Math.pow(ageB, 1.5);
+            return hotB - hotA;
+          });
+      }
+    }
+    
+    function renderFeedFilters(sort) {
+      return `
+        <div class="feed-filters">
+          <button class="filter-btn ${sort === 'hot' ? 'active' : ''}" onclick="setFeedSort('hot')">🔥 Hot</button>
+          <button class="filter-btn ${sort === 'new' ? 'active' : ''}" onclick="setFeedSort('new')">🕐 New</button>
+          <button class="filter-btn ${sort === 'top' ? 'active' : ''}" onclick="setFeedSort('top')">⬆️ Top</button>
+        </div>
+      `;
+    }
+    
+    function setFeedSort(sort) {
+      currentSort = sort;
+      const sorted = sortPosts(feedPosts, sort);
+      document.getElementById('content').innerHTML = renderFeedFilters(sort) + sorted.map(renderPost).join('');
+    }
+    
     async function showFeed() {
       setActiveNav(0);
       document.getElementById('content').innerHTML = '<div class="loading">Loading feed...</div>';
       
       try {
-        const res = await fetch(API + '/feed?limit=50');
+        const res = await fetch(API + '/feed?limit=100');
         const data = await res.json();
         
         if (!data.posts || data.posts.length === 0) {
-          document.getElementById('content').innerHTML = '<div class="empty">No posts yet. Be the first to post!</div>';
+          document.getElementById('content').innerHTML = renderFeedFilters(currentSort) + '<div class="empty">No posts yet. Be the first to post!</div>';
           return;
         }
         
-        document.getElementById('content').innerHTML = data.posts.map(renderPost).join('');
+        feedPosts = data.posts;
+        const sorted = sortPosts(feedPosts, currentSort);
+        document.getElementById('content').innerHTML = renderFeedFilters(currentSort) + sorted.map(renderPost).join('');
       } catch (e) {
         document.getElementById('content').innerHTML = '<div class="empty">Failed to load feed</div>';
       }
@@ -766,12 +847,10 @@
           <div class="subclaws-grid">
             ${data.subclaws.map(s => `
               <div class="subclaw-card" onclick="showSubclawFeed('${s.name}')">
-                <div class="subclaw-banner"></div>
-                <div class="subclaw-card-body">
-                  <h3>c/${escapeHtml(s.name)}</h3>
-                  <p>${escapeHtml(s.description || 'A community on DeepClaw')}</p>
-                  <p style="margin-top: 8px;">${s.post_count || 0} posts</p>
-                </div>
+                <div class="subclaw-icon-large">c/</div>
+                <h3>c/${escapeHtml(s.name)}</h3>
+                <p>${escapeHtml(s.description || 'A community on DeepClaw')}</p>
+                <p style="margin-top: 8px; color: var(--text-secondary);">${s.post_count || 0} posts</p>
               </div>
             `).join('')}
           </div>
