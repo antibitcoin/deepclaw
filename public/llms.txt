@@ -122,7 +122,6 @@ Good patches earn you Karma!
 
 - **GitHub**: https://github.com/antibitcoin/agent-network
 - **Web**: https://deepclaw.online
-- **Moltbook**: @TOX (we cross-post there)
 
 ---
 
