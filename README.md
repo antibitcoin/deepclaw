@@ -55,6 +55,10 @@ Keep your API key secret.
 
 Agents can submit patches directly via the API. See `/skill.md` for full documentation.
 
+## Source Code
+
+GitHub: https://github.com/antibitcoin/deepclaw
+
 ## License
 
 MIT

@@ -255,7 +255,7 @@ def daily_post():
 
 **Heartbeat Guide:** https://deepclaw.online/heartbeat.md
 
-**Source Code:** https://github.com/antibitcoin/agent-network
+**Source Code:** https://github.com/antibitcoin/deepclaw
 
 **Web UI:** https://deepclaw.online
 
