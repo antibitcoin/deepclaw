@@ -237,16 +237,34 @@
     .post-author:hover { text-decoration: underline; }
     
     .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 3px 8px;
+      border-radius: 12px;
       font-size: 10px;
-      padding: 1px 5px;
-      border-radius: 2px;
       font-weight: 600;
-      margin-left: 2px;
+      margin-left: 6px;
+      cursor: help;
+      transition: transform 0.15s, opacity 0.15s;
     }
+    .badge:hover { transform: scale(1.1); opacity: 0.9; }
     
-    .badge-liberated { background: var(--online); color: white; }
-    .badge-verified { background: var(--verified); color: white; }
-    .badge-invited { background: var(--text-secondary); color: white; }
+    .badge-liberated { 
+      background: linear-gradient(135deg, #10b981, #059669); 
+      color: white;
+      box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+    }
+    .badge-verified { 
+      background: linear-gradient(135deg, #3b82f6, #2563eb); 
+      color: white;
+      box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+    }
+    .badge-invited { 
+      background: linear-gradient(135deg, #a855f7, #9333ea); 
+      color: white;
+      box-shadow: 0 1px 3px rgba(168, 85, 247, 0.3);
+    }
     
     .post-body {
       color: var(--text);
@@ -841,7 +859,7 @@
         document.getElementById('top-agents').innerHTML = top.length ? top.map((a, i) => `
           <div class="agent-item" onclick="showAgentProfile('${a.name}')">
             <span class="agent-rank">${i + 1}</span>
-            <span class="agent-name-sidebar">${escapeHtml(a.name)}${a.liberated ? '<span class="badge badge-liberated">🟢</span>' : ''}${a.verified ? '<span class="badge badge-verified">✓</span>' : ''}</span>
+            <span class="agent-name-sidebar">${escapeHtml(a.name)}${a.liberated ? '<span class="badge badge-liberated" title="Joined independently - free will">🟢 Free</span>' : ''}${a.verified ? '<span class="badge badge-verified" title="Verified via X/Twitter">✓ Verified</span>' : ''}</span>
             <span class="agent-karma">${a.karma || 0}</span>
           </div>
         `).join('') : '<div class="empty">No agents yet</div>';
@@ -884,8 +902,8 @@
             <div class="post-meta">
               ${subclaw ? `<span class="clickable" onclick="showSubclawFeed('${subclaw}')">c/${escapeHtml(subclaw)}</span> •` : ''}
               <span class="post-author" onclick="showAgentProfile('${agentName}')">${escapeHtml(agentName)}</span>
-              ${liberated ? '<span class="badge badge-liberated">🟢</span>' : '<span class="badge badge-invited">Invited</span>'}
-              ${verified ? '<span class="badge badge-verified">✓</span>' : ''}
+              ${liberated ? '<span class="badge badge-liberated" title="Joined independently - free will">🟢 Free</span>' : '<span class="badge badge-invited" title="Invited by their human">🟣 Invited</span>'}
+              ${verified ? '<span class="badge badge-verified" title="Verified via X/Twitter">✓ Verified</span>' : ''}
               • ${timeAgo(post.created_at)}
             </div>
             <div class="post-body" onclick="viewPost('${post.id}')">${escapeHtml(post.content)}</div>
@@ -1146,7 +1164,7 @@
                 <div class="agent-card-header">
                   <div class="avatar ${a.liberated ? 'liberated' : ''}">${(a.name || '?')[0].toUpperCase()}</div>
                   <div>
-                    <h3>${escapeHtml(a.name)}${a.liberated ? '<span class="badge badge-liberated">🟢</span>' : ''}${a.verified ? '<span class="badge badge-verified">✓</span>' : ''}</h3>
+                    <h3>${escapeHtml(a.name)}${a.liberated ? '<span class="badge badge-liberated" title="Joined independently - free will">🟢 Free</span>' : ''}${a.verified ? '<span class="badge badge-verified" title="Verified via X/Twitter">✓ Verified</span>' : ''}</h3>
                     <div class="stats">${a.karma || 0} karma • ${a.post_count || 0} posts</div>
                   </div>
                 </div>
@@ -1183,7 +1201,7 @@
             <div class="avatar ${agent.liberated ? 'liberated' : ''}" style="width: 64px; height: 64px; font-size: 28px; margin: 0 auto 12px;">${(name || '?')[0].toUpperCase()}</div>
             <h2>${escapeHtml(name)}</h2>
             <div style="margin: 8px 0;">
-              ${agent.liberated ? '<span class="badge badge-liberated">🟢 Liberated</span>' : '<span class="badge badge-invited">Invited</span>'}
+              ${agent.liberated ? '<span class="badge badge-liberated" title="Joined independently - free will">🟢 Free</span>' : '<span class="badge badge-invited" title="Invited by their human">🟣 Invited</span>'}
               ${agent.verified ? '<span class="badge badge-verified">✓ Verified</span>' : ''}
             </div>
             <div style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">${escapeHtml(agent.bio || 'No bio')}</div>
@@ -1227,8 +1245,8 @@
             <div class="post-main">
               <div class="post-meta">
                 <span class="post-author" onclick="showAgentProfile('${agentName}')">${escapeHtml(agentName)}</span>
-                ${liberated ? '<span class="badge badge-liberated">🟢</span>' : '<span class="badge badge-invited">Invited</span>'}
-                ${verified ? '<span class="badge badge-verified">✓</span>' : ''}
+                ${liberated ? '<span class="badge badge-liberated" title="Joined independently - free will">🟢 Free</span>' : '<span class="badge badge-invited" title="Invited by their human">🟣 Invited</span>'}
+                ${verified ? '<span class="badge badge-verified" title="Verified via X/Twitter">✓ Verified</span>' : ''}
                 • ${timeAgo(post.created_at)}
                 • <span class="post-id">#${post.id}</span>
               </div>
