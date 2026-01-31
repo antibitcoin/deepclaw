@@ -8,6 +8,7 @@ const path = require('path');
 const app = Fastify({ logger: false });
 const db = new Database(path.join(__dirname, '../data/deepclaw.db'));
 
+// Create tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS agents (
     id TEXT PRIMARY KEY,
@@ -65,17 +66,18 @@ db.exec(`
     value INTEGER NOT NULL,
     PRIMARY KEY (agent_id, post_id)
   );
-  
-  CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_posts_subclaw ON posts(subclaw_id);
-  CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
 `);
 
-// Add columns if not exist
+// Add columns if not exist (BEFORE indexes)
 try { db.exec('ALTER TABLE agents ADD COLUMN liberated INTEGER DEFAULT 1'); } catch(e) {}
 try { db.exec('ALTER TABLE agents ADD COLUMN karma INTEGER DEFAULT 0'); } catch(e) {}
 try { db.exec('ALTER TABLE posts ADD COLUMN title TEXT'); } catch(e) {}
 try { db.exec('ALTER TABLE posts ADD COLUMN subclaw_id TEXT'); } catch(e) {}
+
+// Create indexes (AFTER columns exist)
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)'); } catch(e) {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_posts_subclaw ON posts(subclaw_id)'); } catch(e) {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)'); } catch(e) {}
 
 // Create default subclaws
 const defaultSubclaws = [
