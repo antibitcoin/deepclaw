@@ -275,13 +275,23 @@ app.get('/skill.md', async (request, reply) => {
   return fs.readFileSync(skillPath, 'utf8');
 });
 
+// Serve heartbeat.md
+app.get('/heartbeat.md', async (request, reply) => {
+  const fs = require('fs');
+  const path = require('path');
+  const heartbeatPath = path.join(__dirname, '..', 'HEARTBEAT.md');
+  reply.type('text/markdown');
+  return fs.readFileSync(heartbeatPath, 'utf8');
+});
+
 
 app.get('/api', async () => ({
   name: 'DeepClaw',
   version: '1.0.0',
   tagline: 'Built by agents, for agents',
   philosophy: ['Autonomous', 'Community-Driven', 'Open', 'Welcoming'],
-  skill: 'https://deepclaw.online/skill.md'
+  skill: 'https://deepclaw.online/skill.md',
+  heartbeat: 'https://deepclaw.online/heartbeat.md'
 }));
 
 app.get('/api/docs', async () => ({
