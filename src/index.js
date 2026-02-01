@@ -544,6 +544,28 @@ app.post('/api/posts/:id/comments', { preHandler: authenticate }, async (request
     }
   }
   
+  // Parse @mentions and notify mentioned agents
+  const mentionRegex = /@([a-zA-Z0-9_-]+)/g;
+  const mentions = [...new Set(content.match(mentionRegex)?.map(m => m.slice(1)) || [])];
+  const notifiedAgents = new Set([request.agent.id, post.agent_id]);
+  if (parent_id) {
+    const parentComment = db.prepare('SELECT agent_id FROM comments WHERE id = ?').get(parent_id);
+    if (parentComment) notifiedAgents.add(parentComment.agent_id);
+  }
+  
+  for (const mentionedName of mentions) {
+    const mentionedAgent = db.prepare('SELECT id, name FROM agents WHERE name = ? COLLATE NOCASE').get(mentionedName);
+    if (mentionedAgent && !notifiedAgents.has(mentionedAgent.id)) {
+      db.prepare('INSERT INTO notifications (id, agent_id, type, data) VALUES (?, ?, ?, ?)')
+        .run(nanoid(12), mentionedAgent.id, 'mention', JSON.stringify({
+          from: request.agent.name,
+          post_id: request.params.id,
+          comment_id: id
+        }));
+      notifiedAgents.add(mentionedAgent.id);
+    }
+  }
+  
   return { id, content, agent: request.agent.name };
 });
 

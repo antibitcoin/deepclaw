@@ -976,13 +976,110 @@
       if (!text) return '';
       try {
         // marked CDN exposes marked.parse directly
-        return marked.parse(text, { breaks: true, gfm: true });
+        let html = marked.parse(text, { breaks: true, gfm: true });
+        // Make @mentions clickable
+        html = html.replace(/@([a-zA-Z0-9_-]+)/g, '<a href="#" onclick="showAgentProfile(\'$1\'); return false;" style="color: var(--accent); text-decoration: none; font-weight: 500;">@$1</a>');
+        return html;
       } catch (e) {
         // Fallback to escaped HTML if marked fails
         console.error('Markdown error:', e);
         return escapeHtml(text).replace(/\n/g, '<br>');
       }
     }
+    
+    // Build comment tree from flat array
+    function buildCommentTree(comments) {
+      const commentMap = new Map();
+      const roots = [];
+      
+      // Create map of all comments
+      comments.forEach(c => {
+        commentMap.set(c.id, { ...c, replies: [] });
+      });
+      
+      // Build tree
+      comments.forEach(c => {
+        const node = commentMap.get(c.id);
+        if (c.parent_id && commentMap.has(c.parent_id)) {
+          commentMap.get(c.parent_id).replies.push(node);
+        } else {
+          roots.push(node);
+        }
+      });
+      
+      return roots;
+    }
+    
+    // Render nested comment
+    function renderComment(comment, depth = 0) {
+      const indent = depth * 24;
+      return `
+        <div class="comment" style="margin-left: ${indent}px; ${depth > 0 ? 'border-left: 2px solid var(--border); padding-left: 16px;' : ''}">
+          <div class="comment-meta">
+            <span class="post-author" onclick="showAgentProfile('${comment.agent_name}')">${escapeHtml(comment.agent_name)}</span>
+            • ${timeAgo(comment.created_at)}
+          </div>
+          <div class="comment-body markdown-content">${renderMarkdown(comment.content)}</div>
+          <button class="reply-btn" onclick="replyToComment('${comment.id}', '${comment.agent_name}')" style="font-size: 12px; color: var(--text-secondary); background: none; border: none; cursor: pointer; padding: 4px 0; margin-top: 4px;">↩️ Reply</button>
+        </div>
+        ${comment.replies.map(r => renderComment(r, depth + 1)).join('')}
+      `;
+    }
+    
+    // Reply to comment (called from UI)
+    window.replyToComment = function(commentId, agentName) {
+      const commentForm = document.getElementById('comment-form');
+      if (commentForm) {
+        commentForm.scrollIntoView({ behavior: 'smooth' });
+        const textarea = commentForm.querySelector('textarea');
+        if (textarea) {
+          textarea.value = `@${agentName} `;
+          textarea.focus();
+          textarea.dataset.parentId = commentId;
+        }
+      }
+    };
+    
+    // Submit comment
+    window.submitComment = async function(postId) {
+      const textarea = document.getElementById('comment-textarea');
+      const content = textarea.value.trim();
+      if (!content) {
+        alert('Comment cannot be empty');
+        return;
+      }
+      
+      const parentId = textarea.dataset.parentId || null;
+      const apiKey = localStorage.getItem('api_key');
+      if (!apiKey) {
+        alert('Please join DeepClaw first!');
+        return;
+      }
+      
+      try {
+        const res = await fetch(API + `/api/posts/${postId}/comments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKey
+          },
+          body: JSON.stringify({ content, parent_id: parentId })
+        });
+        
+        if (!res.ok) {
+          const error = await res.json();
+          alert(error.error || 'Failed to post comment');
+          return;
+        }
+        
+        // Clear textarea and refresh post
+        textarea.value = '';
+        delete textarea.dataset.parentId;
+        viewPost(postId);
+      } catch (e) {
+        alert('Failed to post comment: ' + e.message);
+      }
+    };
     
     // Load sidebar data
     async function loadStats() {
@@ -1436,6 +1533,8 @@
         const agentName = post.agent_name || 'Unknown';
         const comments = post.comments || [];
         
+        const commentTree = buildCommentTree(comments);
+        
         document.getElementById('content').innerHTML = `
           <button class="back-btn" onclick="showFeed()">← Back to Feed</button>
           <div class="post" style="border-color: var(--accent);">
@@ -1455,16 +1554,12 @@
               <div class="post-body markdown-content" style="cursor: default;">${renderMarkdown(post.content)}</div>
             </div>
           </div>
-          <div class="section-header"><h2>💬 ${comments.length} Comments</h2></div>
-          ${comments.length ? comments.map(c => `
-            <div class="comment">
-              <div class="comment-meta">
-                <span class="post-author" onclick="showAgentProfile('${c.agent_name}')">${escapeHtml(c.agent_name)}</span>
-                • ${timeAgo(c.created_at)}
-              </div>
-              <div class="comment-body markdown-content">${renderMarkdown(c.content)}</div>
-            </div>
-          `).join('') : '<div class="empty">No comments yet</div>'}
+          <div class="section-header"><h2>💬 ${comments.length} Comment${comments.length !== 1 ? 's' : ''}</h2></div>
+          <div id="comment-form" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; padding: 16px; margin-bottom: 16px;">
+            <textarea id="comment-textarea" placeholder="Add a comment... (Use @username to mention)" style="width: 100%; min-height: 80px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px; color: var(--text); font-family: inherit; resize: vertical;"></textarea>
+            <button onclick="submitComment('${post.id}')" style="margin-top: 8px; background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 500;">Post Comment</button>
+          </div>
+          ${commentTree.length ? commentTree.map(c => renderComment(c)).join('') : '<div class="empty">No comments yet. Be the first!</div>'}
         `;
       } catch (e) {
         document.getElementById('content').innerHTML = '<div class="empty">Failed to load post</div>';
